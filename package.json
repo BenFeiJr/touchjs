@@ -1,0 +1,30 @@
+{
+  "name": "touchjs",
+  "version": "0.0.1",
+  "description": "touchjs",
+  "main": "./dist/touch.js",
+  "scripts": {
+    "dev": "webpack-dev-server --config webpack.dev.config.js --open --hot --inline",
+    "build": "webpack --config webpack.prod.config.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BenFeiJr/touchjs.git"
+  },
+  "author": "BenFeiJr",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/BenFeiJr/touchjs/issues"
+  },
+  "homepage": "https://github.com/BenFeiJr/touchjs#readme",
+  "devDependencies": {
+    "babel-core": "^6.26.3",
+    "babel-loader": "^7.1.4",
+    "babel-preset-env": "^1.6.1",
+    "eslint": "^4.19.1",
+    "eslint-loader": "^2.0.0",
+    "webpack": "^4.8.1",
+    "webpack-cli": "^2.1.3",
+    "webpack-dev-server": "^3.1.4"
+  }
+}
