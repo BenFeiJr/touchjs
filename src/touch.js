@@ -23,46 +23,67 @@ const touch = function (element) {
 touch.prototype = {
     version: '0.0.1',
     constructor: touch,
-    _EVENT_NAME_MAP: {
-        TAP: 'tap',
-        PRESS: 'press',
-        SWIPE: 'swipe',
-        PINCH: 'pinch'
-    },
-    _originalEventInfo: {},
+
     Init: function (element) {
         this.element = element;
-        this._bindedEventList = [];
-
-        this._resetOriginalEventInfo();
-        this._bindOriginalEvent();
+        this._customEventInstance = new TouchCustomEvent(element);
+        this._customEventInstance._bindOriginalEvent();
 
         return this;
-    },
-    _resetOriginalEventInfo: function () {
-        this._originalEventInfo = {
+    }
+};
+
+/**
+ * 存储了所有的自定义事件
+ */
+class TouchCustomEventList {
+    constructor () {
+        this.list = [];
+    }
+
+    get () {
+        return this.list;
+    }
+
+    item (eventName) {
+        return this.list.find((item) => {
+            return item.name === eventName;
+        }) || {};
+    }
+
+    add (item) {
+        this.list.push(item);
+    }
+
+    delete (item) {}
+
+    clear () {
+        this.list = [];
+    }
+}
+
+class TouchCustomEvent {
+    constructor (element) {
+        this._EVENT_NAME_MAP = {
+            TAP: 'tap',
+            PRESS: 'press',
+            SWIPE: 'swipe',
+            PINCH: 'pinch'
+        };
+
+        this.element = element;
+
+        this.originalEventInfo = {
             touchstart: {},
             touchmove: [],
             touchend: {}
         };
-    },
-    _updateOriginalEventInfo: function (originalEventName, e) {
-        console.log(originalEventName, e);
-        const isTouchMove = originalEventName === 'touchmove';
-        const eventInfo = {
-            timeStamp: e.timeStamp,
-            changedTouches: e.changedTouches,
-            touches: e.touches
-        };
 
-        if (isTouchMove) {
-            this._originalEventInfo[originalEventName].push(eventInfo);
-        }
-        else {
-            this._originalEventInfo[originalEventName] = eventInfo;
-        }
-    },
-    _bindOriginalEvent: function () {
+        this.motionInstance = new Motion(this.element);
+        this.customEventListInstance = new TouchCustomEventList();
+    }
+
+    _bindOriginalEvent () {
         const tapEventName = this._EVENT_NAME_MAP.TAP;
 
         this.element.addEventListener('touchstart', (e) => {
@@ -77,15 +98,83 @@ touch.prototype = {
             this._updateOriginalEventInfo('touchend', e);
 
             if (this._canTriggerCustomEvent(tapEventName)) {
-                this.element.dispatchEvent(this._getEventInstance(tapEventName));
+                this.element.dispatchEvent(this._getCustomEventInstance(tapEventName));
             }
         });
-    },
+    }
+
+    _getOriginalEventInfo () {
+        return this.originalEventInfo;
+    }
+
+    _updateOriginalEventInfo (originalEventName, e) {
+        const isTouchMove = originalEventName === 'touchmove';
+        const eventInfo = {
+            timeStamp: e.timeStamp,
+            changedTouches: e.changedTouches,
+            touches: e.touches
+        };
+
+        if (isTouchMove) {
+            this.originalEventInfo[originalEventName].push(eventInfo);
+        }
+        else {
+            this.originalEventInfo[originalEventName] = eventInfo;
+        }
+    }
+
+    _resetOriginalEventInfo () {
+        this.originalEventInfo = {
+            touchstart: {},
+            touchmove: [],
+            touchend: {}
+        };
+    }
+
+    _canTriggerCustomEvent (eventName) {
+        return this._getCustomEventInstance(eventName) && this._isBelongCustomEvent(eventName);
+    }
+
+    _isBelongCustomEvent (eventName) {
+        let isBelong;
+
+        switch (eventName) {
+            case this._EVENT_NAME_MAP.TAP: {
+                const motion = this.motionInstance.get(this._getOriginalEventInfo());
+                console.log(motion);
+                // TODO: 最大的值怎么得出来？
+                isBelong = motion.duration < 300 && motion.distance < 16;
+                break;
+            }
+        }
+
+        return isBelong;
+    }
+
+    _getCustomEventInstance (eventName) {
+        return this.customEventListInstance.item(eventName).instance;
+    }
+
+    addEvent (eventName, eventHandler) {
+        const bindedEventListItem = {
+            name: eventName,
+            instance: new Event(eventName)
+        };
+
+        this.customEventListInstance.add(bindedEventListItem);
+        this.element.addEventListener(eventName, eventHandler);
+    }
+
+    removeEvent (eventName, eventHandler) {}
+}
+
+class Motion {
+    constructor () {}
     /**
      * @range {string} all, firstHalf, secondHalf
      */
-    _getMotion: function (range = 'all') {
-        const f = this._originalEventInfo;
+    get (originalEventInfo, range = 'all') {
+        const f = originalEventInfo;
         const moves = [f.touchstart].concat(f.touchmove).concat([f.touchend]);
         const firstIndex = 0;
         const halfIndex = Math.floor(moves.length / 2);
@@ -99,9 +188,9 @@ touch.prototype = {
         const move_end = moves[indexMap[range][1]];
 
         const dt = move_end.timeStamp - move_begin.timeStamp;
-        const dx = move_end.screenX - move_begin.screenX;
+        const dx = move_end.changedTouches[0].screenX - move_begin.changedTouches[0].screenX;
         // 坐标系更改成左下角
-        const dy = (window.screen.height - move_end.screenY) - (window.screen.height - move_begin.screenY);
+        const dy = (window.screen.height - move_end.changedTouches[0].screenY) - (window.screen.height - move_begin.changedTouches[0].screenY);
         const dist = Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2));
 
         const duration = dt;
@@ -159,51 +248,23 @@ touch.prototype = {
             distance,
             angle
         };
-    },
-    _isBelongCustomEvent: function (eventName) {
-        let isBelong;
-
-        switch (eventName) {
-            case this._EVENT_NAME_MAP.TAP: {
-                const motion = this._getMotion();
-                // TODO: 最大的值怎么得出来？
-                isBelong = motion.duration < 300 && motion.distance < 16;
-                break;
-            }
-        }
-
-        return isBelong;
-    },
-    _canTriggerCustomEvent: function (eventName) {
-        return this._getEventInstance(eventName) && this._isBelongCustomEvent(eventName);
-    },
-    _getBindedEventListItem: function (eventName) {
-        return this._bindedEventList.find((item) => {
-            return item.name === eventName;
-        }) || {};
-    },
-    _addBindedEventListItem: function (item) {
-        this._bindedEventList.push(item);
-    },
-    _deleteBindedEventListItem: function (item) {},
-    _getEventInstance: function (eventName) {
-        return this._getBindedEventListItem(eventName).instance;
-    },
-    on: function (eventName, eventHandler) {
-        const bindedEventListItem = {
-            name: eventName,
-            instance: new Event(eventName)
-        };
-
-        this._addBindedEventListItem(bindedEventListItem);
-        this.element.addEventListener(eventName, eventHandler);
-    },
-    off: function (eventName, eventHandler) {
-        // 删除_bindedEventList中name = eventName的项
-        // 如果删除完为空数组了，就解绑originalEvent
     }
+}
+
+/**
+ * 对外 api
+ */
+touch.prototype.on = function (eventName, eventHandler) {
+    this._customEventInstance.addEvent(eventName, eventHandler);
+};
+touch.prototype.off = function (eventName, eventHandler) {
+    // 删除_bindedCustomEventList中name = eventName的项
+    // 如果删除完为空数组了，就解绑originalEvent
+    this._canTriggerCustomEvent.removeEvent(eventName, eventHandler);
 };
 
 touch.prototype.Init.prototype = touch.prototype;
+
+window.touch = touch;
 
 export default touch;
